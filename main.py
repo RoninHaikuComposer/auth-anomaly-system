@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from auth import hash_password, verify_password, create_access_token, get_current_user
@@ -35,10 +35,10 @@ async def register(request:RegisterRequest, db: Session = Depends(get_db)):
     db.add(user)
     db.commit()
     db.refresh(user)
-    return {"message": "User registered successfully", "email":user.email}
+    return {"message": "User registered successfully", "email":user.email,}
 
 @app.post("/auth/login")
-async def login (request: LoginRequest, db: Session = Depends(get_db)):
+async def login (req : Request , request: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == request.email).first()
     if not user:
         raise HTTPException(status_code=401, detail = "Invalid Credentials")
@@ -48,8 +48,8 @@ async def login (request: LoginRequest, db: Session = Depends(get_db)):
     signal = {
         "email":user.email,
         "timestamp":datetime.utcnow(),
-        "ip_address":"unknown",
-        "user_agent":"unknown"
+        "ip_address":req.client.host,
+        "user_agent": req.headers.get("user-agent")
     }
     login_signals.insert_one(signal)
     return{"access_token": token, "token_type":"bearer"}
