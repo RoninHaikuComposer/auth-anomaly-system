@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from auth import hash_password, verify_password
+from auth import hash_password, verify_password, create_access_token, get_current_user
 from models import User
 from database import get_db, engine
 from models import Base
@@ -39,8 +39,13 @@ async def register(request:RegisterRequest, db: Session = Depends(get_db)):
 async def login (request: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == request.email).first()
     if not user:
-        raise HTTPException(status_code=404, detail = "User not found")
+        raise HTTPException(status_code=401, detail = "Invalid Credentials")
     if not verify_password(request.password, user.password_hash):
-        raise HTTPException(status_code =401, detail = "Incorrect Password")
-    return{"message":"Login Successful","email":"user.email"}
+        raise HTTPException(status_code =401, detail = "Invalid Credentials")
+    token = create_access_token({"sub": user.email})
+    return{"access_token": token, "token_type":"bearer"}
+
+@app.get("/protected")
+async def protected_route (current_user = Depends(get_current_user)):
+    return{"email":current_user}
     
