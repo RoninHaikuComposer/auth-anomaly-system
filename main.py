@@ -7,6 +7,7 @@ from database import get_db, engine
 from models import Base
 from datetime import datetime
 from mongo import login_signals
+from anomaly import analyze_login
 
 Base.metadata.create_all(bind=engine)
 
@@ -57,4 +58,9 @@ async def login (req : Request , request: LoginRequest, db: Session = Depends(ge
 @app.get("/protected")
 async def protected_route (current_user = Depends(get_current_user)):
     return{"email":current_user}
+
+@app.get("/auth/analyze/{email}")
+def analyze_user(email:str, current_user:str = Depends(get_current_user)):
+    result = analyze_login(email)
+    return result
     
