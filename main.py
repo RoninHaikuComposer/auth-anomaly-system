@@ -37,7 +37,7 @@ async def register(request:RegisterRequest, db: Session = Depends(get_db)):
     db.add(user)
     db.commit()
     db.refresh(user)
-    return {"message": "User registered successfully", "email":user.email,}
+    return {"message": "User registered successfully", "email":user.email}
 
 @app.post("/auth/login")
 async def login (req : Request , request: LoginRequest, db: Session = Depends(get_db)):
@@ -52,8 +52,15 @@ async def login (req : Request , request: LoginRequest, db: Session = Depends(ge
         "timestamp":datetime.utcnow(),
         "ip_address":req.client.host,
         "user_agent": req.headers.get("user-agent")
+        
     }
     login_signals.insert_one(signal)
+    result = analyze_login(request.email)
+    if result["verdict"] == "insufficient_data":
+        return result
+    risk_level, action = risk_analysis(result["score"])
+    if action == "block":
+        raise HTTPException(status_code = 403, detail = "forbidden")
     return{"access_token": token, "token_type":"bearer"}
 
 @app.get("/protected")
