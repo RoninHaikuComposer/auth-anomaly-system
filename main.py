@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from auth import hash_password, verify_password, create_access_token, get_current_user
+from auth import hash_password, verify_password, create_access_token, get_current_user, SECRET_KEY, ALGORITHM
 from models import User
 from database import get_db, engine
 from models import Base
@@ -9,10 +9,34 @@ from datetime import datetime
 from mongo import login_signals
 from anomaly import analyze_login
 from risk import risk_analysis
+from session_manager import start_session, log_request, end_session
+from jose import JWTError, jwt
+
+
 
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
+@app.middleware("http")
+async def session_middleware(request, call_next):
+    auth_header = request.headers.get("authorization")
+    if auth_header is None:
+        return await call_next(request)
+    token = auth_header.split(" ")[1]
+    try:
+        user_data = get_current_user(token)
+        session_id = user_data["session_id"]
+        log_request(session_id, request.url.path)
+        return await call_next(request)
+
+    except  JWTError:
+        payload = jwt.decode(token, SECRET_KEY, algorithms = [ALGORITHM], options = {"verify_exp":False})
+        session_id = payload.get("session_id")
+        end_session(session_id)
+        raise HTTPException(status_code =  401, detail = "Token Expired")
+
+
+
 
 @app.get("/")
 async def root():
@@ -46,7 +70,8 @@ async def login (req : Request , request: LoginRequest, db: Session = Depends(ge
         raise HTTPException(status_code=401, detail = "Invalid Credentials")
     if not verify_password(request.password, user.password_hash):
         raise HTTPException(status_code =401, detail = "Invalid Credentials")
-    token = create_access_token({"sub": user.email})
+    session_id = start_session(user.email)
+    token = create_access_token({"sub": user.email, "session_id":session_id})
     signal = {
         "email":user.email,
         "timestamp":datetime.utcnow(),
@@ -68,7 +93,7 @@ async def protected_route (current_user = Depends(get_current_user)):
     return{"email":current_user}
 
 @app.get("/auth/analyze/{email}")
-def analyze_user(email:str, current_user:str = Depends(get_current_user)):
+def analyze_user(email:str, current_user:dict = Depends(get_current_user)):
     result = analyze_login(email)
     risk_level, action = risk_analysis(result["score"])
     return { "verdict" : result["verdict"], "score": result["score"], "risk_level" : risk_level, "action":action}
