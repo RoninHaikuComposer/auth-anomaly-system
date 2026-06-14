@@ -11,7 +11,8 @@ from anomaly import analyze_login
 from risk import risk_analysis
 from session_manager import start_session, log_request, end_session
 from jose import JWTError, jwt
-
+from fastapi.responses import JSONResponse
+from sqlalchemy.exc import IntegrityError
 
 
 Base.metadata.create_all(bind=engine)
@@ -29,11 +30,15 @@ async def session_middleware(request, call_next):
         log_request(session_id, request.url.path)
         return await call_next(request)
 
-    except  JWTError:
-        payload = jwt.decode(token, SECRET_KEY, algorithms = [ALGORITHM], options = {"verify_exp":False})
-        session_id = payload.get("session_id")
-        end_session(session_id)
-        raise HTTPException(status_code =  401, detail = "Token Expired")
+    except  HTTPException:
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms = [ALGORITHM], options = {"verify_exp":False})
+            session_id = payload.get("session_id")
+            end_session(session_id)
+        except:
+            pass
+        return JSONResponse(status_code = 401, content = {"detail":"Invalid/Expired Token"})
+        
 
 
 
@@ -58,10 +63,16 @@ class RegisterRequest(BaseModel):
 async def register(request:RegisterRequest, db: Session = Depends(get_db)):
     hashed = hash_password(request.password)
     user = User(email=request.email, password_hash = hashed)
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    return {"message": "User registered successfully", "email":user.email}
+    
+    try:
+       db.add(user)
+       db.commit()
+       db.refresh(user)
+       return {"message": "User registered successfully", "email":user.email}
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code = 409, detail = "Email already exists")
+
 
 @app.post("/auth/login")
 async def login (req : Request , request: LoginRequest, db: Session = Depends(get_db)):
