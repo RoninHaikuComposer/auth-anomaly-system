@@ -9,3 +9,5 @@ class User(Base):
     password_hash = Column(String, nullable = False)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default = datetime.utcnow)
+    block_count = Column(Integer, default = 0, nullable = False)
+    locked_until = Column(DateTime, default = None, nullable = True )

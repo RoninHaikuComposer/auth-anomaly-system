@@ -13,6 +13,7 @@ from session_manager import start_session, log_request, end_session
 from jose import JWTError, jwt
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
+from lockout import check_lockout , update_lockout
 
 
 Base.metadata.create_all(bind=engine)
@@ -79,6 +80,8 @@ async def login (req : Request , request: LoginRequest, db: Session = Depends(ge
     user = db.query(User).filter(User.email == request.email).first()
     if not user:
         raise HTTPException(status_code=401, detail = "Invalid Credentials")
+    if check_lockout(user) == True:
+        raise HTTPException(status_code = 403, detail = "Too many attempts")
     if not verify_password(request.password, user.password_hash):
         raise HTTPException(status_code =401, detail = "Invalid Credentials")
     session_id = start_session(user.email)
@@ -96,7 +99,9 @@ async def login (req : Request , request: LoginRequest, db: Session = Depends(ge
         return result
     risk_level, action = risk_analysis(result["score"])
     if action == "block":
+        update_lockout(user, db)
         raise HTTPException(status_code = 403, detail = "forbidden")
+    
     return{"access_token": token, "token_type":"bearer"}
 
 @app.get("/protected")
