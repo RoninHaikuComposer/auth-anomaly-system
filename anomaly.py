@@ -12,8 +12,8 @@ def extract_features (signal, ip, device_signature):
 
 def analyze_login (email):
     all_signals = list(login_signals.find({"email":email}).sort("timestamp",1))
-    if len(all_signals)<5:
-        return {"verdict":"insufficient_data","message":"need at least 5 logins to analyze"}
+    if len(all_signals)<15:
+        return {"verdict":"insufficient_data","message":"need at least 15 logins to analyze"}
     feature_matrix = []
     for i, signal in enumerate(all_signals):
         if i == 0:
