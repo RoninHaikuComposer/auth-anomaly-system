@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 from lockout import check_lockout , update_lockout
 import os
-print("MONGO_URI:", os.getenv("MONGO_URI"))
+
 
 
 Base.metadata.create_all(bind=engine)
@@ -77,34 +77,7 @@ async def register(request:RegisterRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code = 409, detail = "Email already exists")
 
 
-@app.post("/auth/login")
-async def login (req : Request , request: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == request.email).first()
-    if not user:
-        raise HTTPException(status_code=401, detail = "Invalid Credentials")
-    if check_lockout(user) == True:
-        raise HTTPException(status_code = 403, detail = "Too many attempts")
-    if not verify_password(request.password, user.password_hash):
-        raise HTTPException(status_code =401, detail = "Invalid Credentials")
-    session_id = start_session(user.email)
-    token = create_access_token({"sub": user.email, "session_id":session_id})
-    signal = {
-        "email":user.email,
-        "timestamp":datetime.utcnow(),
-        "ip_address":req.client.host,
-        "user_agent": req.headers.get("user-agent")
-        
-    }
-    login_signals.insert_one(signal)
-    result = analyze_login(request.email)
-    if result["verdict"] == "insufficient_data":
-        return result
-    risk_level, action = risk_analysis(result["score"])
-    if action == "block":
-        update_lockout(user, db)
-        raise HTTPException(status_code = 403, detail = "forbidden")
-    
-    return{"access_token": token, "token_type":"bearer"}
+
 
 @app.get("/protected")
 async def protected_route (current_user = Depends(get_current_user)):
