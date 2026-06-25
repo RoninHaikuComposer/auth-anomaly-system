@@ -1,4 +1,9 @@
 from pymongo import MongoClient
-client = MongoClient("mongodb://localhost:27017")
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+client = MongoClient(os.getenv("MONGO_URI"))
 db = client["auth_anomaly_db"]
 sessions = db["sessions"]
