@@ -14,6 +14,8 @@ from jose import JWTError, jwt
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 from lockout import check_lockout , update_lockout
+import os
+print("MONGO_URI:", os.getenv("MONGO_URI"))
 
 
 Base.metadata.create_all(bind=engine)
