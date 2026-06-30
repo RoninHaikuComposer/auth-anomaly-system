@@ -23,7 +23,7 @@ def analyze_login (email):
         features = extract_features(signal, prev_ip, prev_device)
         feature_matrix.append(features)
     X  = np.array(feature_matrix)
-    model = IsolationForest(contamination = 0.1, random_state = 42)
+    model = IsolationForest(contamination = 0.01, random_state = 42)
     model.fit(X)
     latest_signal = all_signals[-1]
     prev_ip = all_signals[-2]["ip_address"]
